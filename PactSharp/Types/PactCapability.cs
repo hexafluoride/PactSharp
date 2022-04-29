@@ -20,9 +20,15 @@ public class PactCapability
         }
     }
 
+    [JsonConstructor]
+    public PactCapability(string name)
+    {
+        Name = name;
+    }
+
     private void PromoteArgumentsFromJsonElement()
     {
-        Func<JsonElement, object> resolve = null;
+        Func<JsonElement, object?>? resolve = null;
         resolve = (elem) =>
         {
             return elem.ValueKind switch
@@ -31,15 +37,18 @@ public class PactCapability
                 JsonValueKind.True => true,
                 JsonValueKind.Number => elem.GetDecimal(),
                 JsonValueKind.String => elem.GetString(),
-                JsonValueKind.Array => elem.EnumerateArray().Select(e => resolve(e)).ToArray(),
+                JsonValueKind.Array => elem.EnumerateArray().Select(e => resolve!(e)).ToArray(),
                 _ => elem
             };
         };
         
         for (int i = 0; i < Arguments.Count; i++)
         {
-            if (Arguments[i] is JsonElement jsonElement)
-                Arguments[i] = resolve(jsonElement);
+            if (Arguments[i] is JsonElement jsonElement) {
+                var resolvedArg = resolve!(jsonElement);
+                if (resolvedArg is object arg)
+                    Arguments[i] = arg;
+            }
         }
     }
 
@@ -99,14 +108,13 @@ public class PactCapability
         return ret;
     }
     
-    public static PactCapability FromString(string str)
+    public static PactCapability? FromString(string str)
     {
         if (str.First() != '(' || str.Last() != ')')
             return null;
 
         var parts = SplitSpaceSeparatedValues(str.Substring(1, str.Length - 2));
-        var cap = new PactCapability();
-        cap.Name = parts[0];
+        var cap = new PactCapability(parts[0]);
         cap.Arguments = new List<object>();
 
         foreach (var arg in parts.Skip(1))

@@ -13,7 +13,7 @@ public class PactExecutionException : Exception
         else if (resp.Result.Status != "success")
         {
             Message =
-                $"Execution status is \"{resp.Result.Status}\" with remote message \"{resp.Result.Error.Message}\" and \"{resp.Result.Error.Info}\", type {resp.Result.Error.Type}";
+                $"Execution status is \"{resp.Result.Status}\" with remote message \"{resp.Result.Error?.Message}\" and \"{resp.Result.Error?.Info}\", type {resp.Result.Error?.Type}";
         }
         else
         {

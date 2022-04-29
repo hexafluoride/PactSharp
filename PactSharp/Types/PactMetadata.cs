@@ -13,4 +13,14 @@ public class PactMetadata
     
     [JsonPropertyName("publicMeta")]
     public ChainwebMetadata PublicMetadata { get; set; }
+
+    [JsonConstructor]
+    public PactMetadata(long blockTime, int blockHeight, string blockHash, string previousBlockHash, ChainwebMetadata publicMetadata)
+    {
+        BlockTime = blockTime;
+        BlockHeight = blockHeight;
+        BlockHash = blockHash;
+        PreviousBlockHash = previousBlockHash;
+        PublicMetadata = publicMetadata;
+    }
 }

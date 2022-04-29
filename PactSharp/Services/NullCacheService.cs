@@ -9,10 +9,10 @@ public class NullCacheService : ICacheService
 
     public bool HasItem(string key)
     {
-        return Get(key) != null && Get(key).Expires >= DateTime.UtcNow;
+        return Get(key) != null && Get(key)?.Expires >= DateTime.UtcNow;
     }
 
-    public async Task<T> GetItem<T>(string key) where T : ICacheable
+    public async Task<T?> GetItem<T>(string key) where T : ICacheable
     {
         var cached = Get(key);
         if (cached == null)
@@ -82,8 +82,8 @@ public class NullCacheService : ICacheService
         return false;
     }
 
-    private CachedItem Get(ICacheable item) => Get(item.CacheKey);
-    private CachedItem Get(string key) => _buffer.ContainsKey(key) ? _buffer[key] : null;
+    private CachedItem? Get(ICacheable item) => Get(item.CacheKey);
+    private CachedItem? Get(string key) => _buffer.ContainsKey(key) ? _buffer[key] : null;
     
     private Task<bool> Evict(CachedItem item)
     {
@@ -112,15 +112,19 @@ public class NullCacheService : ICacheService
         public DateTime Cached { get; set; }
         public DateTime Expires { get; set; }
         public JsonElement Contents { get; set; }
-        private object _unwrapped;
+        private object? _unwrapped;
+
+        public CachedItem(string key)
+        {
+            Key = key;
+        }
 
         internal static CachedItem FromCacheable<T>(T item, TimeSpan expiry) where T : ICacheable
         {
-            var ret = new CachedItem()
+            var ret = new CachedItem(item.CacheKey)
             {
                 Cached = DateTime.UtcNow,
                 Expires = DateTime.UtcNow + expiry,
-                Key = item.CacheKey,
                 Contents = JsonSerializer.SerializeToElement(item)
             };
 
@@ -133,12 +137,12 @@ public class NullCacheService : ICacheService
             Dirty = true;
         }
 
-        internal T Unwrap<T>() where T : ICacheable
+        internal T? Unwrap<T>() where T : ICacheable
         {
             if (_unwrapped == null)
                 _unwrapped = Contents.Deserialize<T>();
             
-            return (T)_unwrapped;
+            return (T?)_unwrapped;
         }
     }
 }

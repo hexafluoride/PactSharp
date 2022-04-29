@@ -34,5 +34,10 @@ public class PactKeypair
     public byte[] Sign(PactCommand command) => Sign(Base64UrlTextEncoder.Decode(command.Hash));
     public string SignEncoded(byte[] data) => Base64UrlTextEncoder.Encode(Sign(data));
     public string SignEncoded(string str) => Base64UrlTextEncoder.Encode(Sign(str));
-    public string SignEncoded(PactCommand command) => SignEncoded(command.Hash);
+    public string SignEncoded(PactCommand command)
+    {
+        if (command.Hash == null)
+            throw new Exception("Cannot sign command with null Hash value");
+        return SignEncoded(command.Hash);
+    }
 }

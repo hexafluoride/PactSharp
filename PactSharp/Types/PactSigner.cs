@@ -8,11 +8,10 @@ public class PactSigner
     [YamlIgnore]
     public string Scheme { get; set; } = "ED25519";
     [YamlMember(Alias = "public")]
-    public string PubKey { get; set; }
+    public string PubKey { get; set; } = "";
 
     [YamlMember(Alias = "caps")]
-    [JsonPropertyName("clist")] public List<PactCapability> Capabilities { get; set; } = new();
-    public string Addr { get; set; }
+    [JsonPropertyName("clist")] public List<PactCapability?> Capabilities { get; set; } = new();
 
     public PactSigner()
     {
