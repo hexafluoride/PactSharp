@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using PactSharp.Services;
 using PactSharp.Types;
 
 namespace PactSharp;
@@ -18,8 +17,8 @@ public class PactClient
     private readonly HttpClient _http;
     private PactClientSettings _settings;
 
-    public string ApiHost { get; set; }
-    public string NetworkId { get; set; }
+    public string ApiHost { get; set; } = "";
+    public string NetworkId { get; set; } = "";
     public ServerType ServerType { get; set; }
 
     public int DefaultGasLimit { get; set; } = 1500;
@@ -31,7 +30,7 @@ public class PactClient
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    public List<string> RecognizedChains { get; set; }
+    public List<string> RecognizedChains { get; set; } = new List<string>();
 
     public PactClient(HttpClient http)
     {
@@ -114,7 +113,7 @@ public class PactClient
         }
     }
 
-    private string GetApiUrl(string endpoint, string chain = null)
+    private string GetApiUrl(string endpoint, string? chain = null)
     {
         switch (ServerType)
         {
@@ -126,13 +125,13 @@ public class PactClient
             case ServerType.LocalPact:
                 return $"{ApiHost}{endpoint}";
             default:
-                return null;
+                throw new Exception($"Invalid ServerType {ServerType}");
         }
     }
 
-    public async Task<string> SendTransactionAsync(PactCommand command)
+    public async Task<string?> SendTransactionAsync(PactCommand command)
     {
-        var chain = command.Command.Metadata.ChainId;
+        var chain = command.Command?.Metadata.ChainId;
 
         var req = new {cmds = new[] {command}};
         var resp = await _http.PostAsJsonAsync(GetApiUrl($"/pact/api/v1/send", chain), req, PactJsonOptions);
@@ -152,7 +151,7 @@ public class PactClient
 
     public async Task<PactCommandResponse> ExecuteLocalAsync(PactCommand command)
     {
-        var chain = command.Command.Metadata.ChainId;
+        var chain = command.Command?.Metadata.ChainId;
         var resp = await _http.PostAsJsonAsync(GetApiUrl($"/pact/api/v1/local", chain), command, PactJsonOptions);
 
         var respString = await resp.Content.ReadAsStringAsync();
@@ -160,20 +159,22 @@ public class PactClient
         try
         {
             var parsedResponse = await JsonSerializer.DeserializeAsync<PactCommandResponse>(await resp.Content.ReadAsStreamAsync(), PactJsonOptions);
+            if (parsedResponse == null)
+                throw new NullReferenceException($"Error deserializing PactCommandResponse from {resp}");
+
             parsedResponse.SourceCommand = command;
             return parsedResponse;
         }
         catch (Exception e)
         {
-            return new PactCommandResponse()
+            return new PactCommandResponse(new PactCommandResult() {Status = "failure", Error = new PactError() {Message = respString, Info = e.Message, CallStack = e.StackTrace?.Split('\n')}})
             {
-                Result = new PactCommandResult() {Status = "failure", Error = new PactError() {Message = respString, Info = e.Message, CallStack = e.StackTrace?.Split('\n')}},
                 SourceCommand = command
             };
         }
     }
 
-    public async Task<PactCommandResponse> PollRequestAsync(string chain, string requestKey)
+    public async Task<PactCommandResponse?> PollRequestAsync(string chain, string requestKey)
     {
         var resp = await PollRequestsAsync(chain, new[] {requestKey});
 
@@ -183,13 +184,13 @@ public class PactClient
         return resp[requestKey];
     }
     
-    public async Task<Dictionary<string, PactCommandResponse>> PollRequestsAsync(string chain, string[] keys)
+    public async Task<Dictionary<string, PactCommandResponse?>> PollRequestsAsync(string chain, string[] keys)
     {
         var req = new { requestKeys = keys };
         var resp = await _http.PostAsJsonAsync(GetApiUrl($"/pact/api/v1/poll", chain), req, PactJsonOptions);
 
         var respString = await resp.Content.ReadAsStringAsync();
-        var respDict = new Dictionary<string, PactCommandResponse>();
+        var respDict = new Dictionary<string, PactCommandResponse?>();
         
         var respObj = JsonNode.Parse(respString)?.AsObject();
 
@@ -217,7 +218,7 @@ public class PactClient
         return respDict;
     }
 
-    public async Task<ChainwebBlockHeader> GetBlockHeaderAsync(string chain, string blockHash)
+    public async Task<ChainwebBlockHeader?> GetBlockHeaderAsync(string chain, string blockHash)
     {
         var req = new HttpRequestMessage(HttpMethod.Get, GetApiUrl($"/header/{blockHash}?t=json", chain));
         req.Headers.Remove("Accept");
@@ -234,7 +235,7 @@ public class PactClient
         }
     }
     
-    public async Task<IEnumerable<ChainwebBlockHeader>> GetBlockHeadersAsync(string chain, int minHeight, int maxHeight = -1)
+    public async Task<IEnumerable<ChainwebBlockHeader?>> GetBlockHeadersAsync(string chain, int minHeight, int maxHeight = -1)
     {
         var req = new HttpRequestMessage(HttpMethod.Get, GetApiUrl($"/header?minheight={minHeight}{(maxHeight != -1 ? "&maxheight=" + maxHeight : "")}&t=json", chain));
         req.Headers.Remove("Accept");
@@ -253,7 +254,7 @@ public class PactClient
         }
     }
 
-    public async Task<ChainwebBlockPayload> GetBlockPayloadAsync(string chain, string payloadHash)
+    public async Task<ChainwebBlockPayload?> GetBlockPayloadAsync(string chain, string payloadHash)
     {
         var resp = await _http.GetAsync(GetApiUrl($"/payload/{payloadHash}/outputs", chain));
 
@@ -279,12 +280,10 @@ public class PactClient
         return (await resp.Content.ReadAsStringAsync()).Trim('"');
     }
 
-    public PactCmd GenerateExecCommand(string chain, string code, object data = null)
+    public PactCmd GenerateExecCommand(string chain, string code, object? data = null)
     {
-        var cmd = new PactCmd()
+        var cmd = new PactCmd(GenerateMetadata(chain), NetworkId)
         {
-            Metadata = GenerateMetadata(chain),
-            NetworkId = NetworkId,
             Nonce = DateTime.UtcNow.ToLongDateString().HashEncoded(),
             Signers = new List<PactSigner>(),
             Payload = new PactPayload()
@@ -304,18 +303,13 @@ public class PactClient
         string sender = "", int ttl = 3600,
         DateTime creationTime = default)
     {
-        return new ChainwebMetadata()
-        {
-            ChainId = chain,
-            CreationTime = (long) ((creationTime != default ? creationTime : DateTime.UtcNow) - DateTime.UnixEpoch).TotalSeconds,
-            GasLimit = gasLimit < 0 ? DefaultGasLimit : gasLimit,
-            GasPrice = gasPrice < 0 ? DefaultGasPrice : gasPrice,
-            Sender = sender,
-            Ttl = ttl
-        };
+        var _creationTime = (long) ((creationTime != default ? creationTime : DateTime.UtcNow) - DateTime.UnixEpoch).TotalSeconds;
+        var _gasLimit = gasLimit < 0 ? DefaultGasLimit : gasLimit;
+        var _gasPrice = gasPrice < 0 ? DefaultGasPrice : gasPrice;
+        return new ChainwebMetadata(chain, sender, _gasLimit, _gasPrice, ttl, _creationTime);
     }
 
-    public PactCommand BuildCommand(PactCmd cmd, PactSignature[] signatures = null)
+    public PactCommand BuildCommand(PactCmd cmd, PactSignature[]? signatures = null)
     {
         var ret = new PactCommand();
         

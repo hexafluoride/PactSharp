@@ -8,32 +8,36 @@ namespace PactSharp.Types;
 public class PactCommand
 {
     [JsonPropertyName("sigs")]
-    public PactSignature[] Signatures { get; set; }
+    public PactSignature[]? Signatures { get; set; }
     
     [JsonPropertyName("cmd")]
-    public string CommandEncoded { get; set; }
-    public string Hash { get; set; }
+    public string? CommandEncoded { get; set; }
+    public string? Hash { get; set; }
 
     [JsonIgnore]
-    public PactCmd Command
+    public PactCmd? Command
     {
         get => _command;
         set { _command = value; }
     }
     
     [JsonIgnore]
-    public string JsonEncodedForLocal { get; set; }
+    public string? JsonEncodedForLocal { get; set; }
     [JsonIgnore]
-    public string JsonEncodedForSend { get; set; }
+    public string? JsonEncodedForSend { get; set; }
     
     [JsonIgnore]
-    public string YamlEncoded { get; set; }
+    public string? YamlEncoded { get; set; }
 
-    private PactCmd _command;
+    private PactCmd? _command;
 
     public void SetCommand(string encodedJson)
     {
-        Command = JsonSerializer.Deserialize<PactCmd>(encodedJson, PactClient.PactJsonOptions);
+        var res = JsonSerializer.Deserialize<PactCmd>(encodedJson, PactClient.PactJsonOptions);
+        if (res == null)
+            throw new Exception($"Failed to deserialize PactCmd {encodedJson}");
+
+        Command = res;
     }
 
     public void UpdateHash()
@@ -47,6 +51,6 @@ public class PactCommand
             (new YamlDotNet.Serialization.SerializerBuilder()).WithNamingConvention(CamelCaseNamingConvention.Instance)
             .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
             .Build();
-        YamlEncoded = yamlSerializer.Serialize(_command);
+        YamlEncoded = yamlSerializer.Serialize(_command ?? new object());
     }
 }
