@@ -16,9 +16,9 @@ public class PactRefSpec
     }
     
     [JsonConstructor]
-    public PactRefSpec(string ns, string module)
+    public PactRefSpec(string @namespace, string module)
     {
-        Namespace = ns;
+        Namespace = @namespace;
         Module = module;
     }
 }
