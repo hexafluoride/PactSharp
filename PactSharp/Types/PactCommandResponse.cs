@@ -1,9 +1,14 @@
 using System.Text.Json.Serialization;
+using PactSharp.Services;
 
 namespace PactSharp.Types;
 
-public class PactCommandResponse
+public class PactCommandResponse : ICacheable
 {
+    public string CacheKey => RequestKey == null ? "" : GetCacheKey(RequestKey);
+
+    public static string GetCacheKey(string requestKey) => $"command-response@{requestKey}";
+    
     [JsonIgnore]
     public PactCommand? SourceCommand { get; set; }
     

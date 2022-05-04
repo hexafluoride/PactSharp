@@ -1,15 +1,17 @@
 using System.Text.Json.Serialization;
+
 namespace PactSharp.Types;
 
 public class PactModuleReference
 {
-    public string Namespace { get; set; }
-    public string Name { get; set; }
+    [JsonPropertyName("refSpec")]
+    public List<PactRefSpec> Interfaces { get; set; } = new();
+    
+    [JsonPropertyName("refName")]
+    public PactRefSpec Name { get; set; } = new("", "");
 
-    [JsonConstructor]
-    public PactModuleReference(string @namespace, string name)
+    public override string ToString()
     {
-        Namespace = @namespace;
-        Name = name;
+        return Name.ToString();
     }
 }
