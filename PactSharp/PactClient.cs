@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -182,6 +183,67 @@ public class PactClient
             return null;
 
         return resp[requestKey];
+    }
+
+    public async Task<Dictionary<string, int>> GetCutHeights()
+    {
+        var cutResp = await _http.GetStringAsync(GetApiUrl("/cut"));
+        var cutRespParsed = JsonDocument.Parse(cutResp);
+        var ret = new Dictionary<string, int>();
+
+        foreach (var p in cutRespParsed.RootElement.GetProperty("hashes").EnumerateObject())
+        {
+            var chain = p.Name;
+            var height = p.Value.GetProperty("height").GetInt32();
+            ret[chain] = height;
+        }
+
+        return ret;
+    }
+
+    public async Task<IEnumerable<string>> MempoolGetPendingRequests(string chain)
+    {
+        var req = new {};
+        var resp = await _http.PostAsJsonAsync(GetApiUrl($"/mempool/getPending", chain), req, PactJsonOptions);
+
+        var respElem = await JsonSerializer.DeserializeAsync<JsonElement>(await resp.Content.ReadAsStreamAsync(), PactJsonOptions);
+
+        return respElem.GetProperty("hashes").EnumerateArray().Select(e => e.GetString() ?? throw new Exception("Unexpected non-string in hashes array")).ToArray();
+    }
+
+    public async Task<Dictionary<string, PactCommand?>> MempoolLookupRequests(string chain, IEnumerable<string> keys)
+    {
+        var keysArr = keys.ToArray();
+        var resp = await _http.PostAsJsonAsync(GetApiUrl($"/mempool/lookup", chain), keysArr, PactJsonOptions);
+
+        var respElem = await JsonSerializer.DeserializeAsync<JsonElement>(await resp.Content.ReadAsStreamAsync(), PactJsonOptions);
+        var respArr = respElem.EnumerateArray().ToArray();
+
+        var ret = new Dictionary<string, PactCommand?>();
+
+        for (var i = 0; i < respArr.Length; i++)
+        {
+            var key = keysArr[i];
+            var txRes = respArr[i];
+            var tag = txRes.GetProperty("tag").GetString() ?? throw new Exception("Unexpected non-string in tag field");
+            if (tag == "Pending")
+            {
+                var rawCommand = txRes.GetProperty("contents").GetString() ?? throw new Exception("Unexpected non-string in contents field");
+                var command = JsonSerializer.Deserialize<PactCommand>(rawCommand, PactJsonOptions);
+                if (command != null && command.CommandEncoded != null && command.Hash != null) {
+                    command.SetCommand(command.CommandEncoded);
+                    ret[key] = command;
+                } else {
+                    throw new Exception("Could not deserialize inner PactCmd");
+                }
+
+                Debug.Assert(command?.Hash == key, "request key hash did not match expected value");
+            } else {
+                ret[key] = null;
+            }
+        }
+
+        return ret;
     }
     
     public async Task<Dictionary<string, PactCommandResponse?>> PollRequestsAsync(string chain, string[] keys)
