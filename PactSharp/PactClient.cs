@@ -19,6 +19,7 @@ public class PactClient
     private PactClientSettings _settings;
 
     public string ApiHost { get; set; } = "";
+    public string? P2PHost { get; set; }
     public string NetworkId { get; set; } = "";
     public ServerType ServerType { get; set; }
 
@@ -63,6 +64,7 @@ public class PactClient
         {
             case Network.Mainnet:
                 ApiHost = "https://api.chainweb.com";
+                P2PHost = "https://us-e1.chainweb.com";
                 NetworkId = "mainnet01";
                 ServerType = ServerType.Chainweb;
                 break;
@@ -77,7 +79,8 @@ public class PactClient
                 ServerType = ServerType.LocalPact;
                 break;
             case Network.Custom:
-                ApiHost = _settings.CustomNetworkEndpoint;
+                ApiHost = _settings.CustomNetworkRPCEndpoint;
+                P2PHost = _settings.CustomNetworkP2PEndpoint;
                 NetworkId = _settings.CustomNetworkId;
                 ServerType = ServerType.Chainweb;
                 break;
@@ -111,6 +114,25 @@ public class PactClient
                     RecognizedChains = new List<string>() {"0"};
                     break;
             }
+        }
+    }
+
+    private string GetP2PUrl(string endpoint, string? chain = null)
+    {
+        if (P2PHost == null)
+            throw new Exception("Tried to call P2P API method without setting P2P host");
+
+        switch (ServerType)
+        {
+            case ServerType.Chainweb:
+                if (chain != null)
+                    return $"{P2PHost}/chainweb/0.0/{NetworkId}/chain/{chain}{endpoint}";
+                else
+                    return $"{P2PHost}/chainweb/0.0/{NetworkId}{endpoint}";
+            case ServerType.LocalPact:
+                return $"{P2PHost}{endpoint}";
+            default:
+                throw new Exception($"Invalid ServerType {ServerType}");
         }
     }
 
@@ -204,7 +226,7 @@ public class PactClient
     public async Task<IEnumerable<string>> MempoolGetPendingRequests(string chain)
     {
         var req = new {};
-        var resp = await _http.PostAsJsonAsync(GetApiUrl($"/mempool/getPending", chain), req, PactJsonOptions);
+        var resp = await _http.PostAsJsonAsync(GetP2PUrl($"/mempool/getPending", chain), req, PactJsonOptions);
 
         var respElem = await JsonSerializer.DeserializeAsync<JsonElement>(await resp.Content.ReadAsStreamAsync(), PactJsonOptions);
 
@@ -214,7 +236,7 @@ public class PactClient
     public async Task<Dictionary<string, PactCommand?>> MempoolLookupRequests(string chain, IEnumerable<string> keys)
     {
         var keysArr = keys.ToArray();
-        var resp = await _http.PostAsJsonAsync(GetApiUrl($"/mempool/lookup", chain), keysArr, PactJsonOptions);
+        var resp = await _http.PostAsJsonAsync(GetP2PUrl($"/mempool/lookup", chain), keysArr, PactJsonOptions);
 
         var respElem = await JsonSerializer.DeserializeAsync<JsonElement>(await resp.Content.ReadAsStreamAsync(), PactJsonOptions);
         var respArr = respElem.EnumerateArray().ToArray();
