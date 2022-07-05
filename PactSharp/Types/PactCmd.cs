@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using YamlDotNet.Core;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using YamlDotNet.Serialization.ObjectFactories;
 
 namespace PactSharp.Types;
 
@@ -38,8 +39,9 @@ public class PactCmd
     public static IDeserializer YamlDeserializer = (new DeserializerBuilder())
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .IgnoreUnmatchedProperties()
+        .WithObjectFactory(new YamlPactObjectFactory(new DefaultObjectFactory()))
         .Build();
-
+    
     public PactCmd(ChainwebMetadata metadata, string networkId)
     {
         Metadata = metadata;
