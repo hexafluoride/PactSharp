@@ -110,6 +110,7 @@ public class PactCapability
     
     public static PactCapability? FromString(string str)
     {
+        str = str.Trim();
         if (str.First() != '(' || str.Last() != ')')
             return null;
 
