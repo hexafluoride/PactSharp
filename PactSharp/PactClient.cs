@@ -25,6 +25,7 @@ public class PactClient
 
     public int DefaultGasLimit { get; set; } = 1500;
     public decimal DefaultGasPrice { get; set; } = 0.00000001m;
+    public int DefaultTtl { get; set; } = 3600;
     public Network CurrentNetwork { get; set; }
     
     public static JsonSerializerOptions PactJsonOptions = new(JsonSerializerDefaults.Web)
@@ -384,13 +385,14 @@ public class PactClient
     }
 
     public ChainwebMetadata GenerateMetadata(string chain, int gasLimit = -1, decimal gasPrice = -1m,
-        string sender = "", int ttl = 3600,
+        string sender = "", int ttl = -1,
         DateTime creationTime = default)
     {
         var _creationTime = (long) ((creationTime != default ? creationTime : DateTime.UtcNow) - DateTime.UnixEpoch).TotalSeconds;
         var _gasLimit = gasLimit < 0 ? DefaultGasLimit : gasLimit;
         var _gasPrice = gasPrice < 0 ? DefaultGasPrice : gasPrice;
-        return new ChainwebMetadata(chain, sender, _gasLimit, _gasPrice, ttl, _creationTime);
+        var _ttl = ttl < 0 ? DefaultTtl : ttl;
+        return new ChainwebMetadata(chain, sender, _gasLimit, _gasPrice, _ttl, _creationTime);
     }
 
     public PactCommand BuildCommand(PactCmd cmd, PactSignature[]? signatures = null)
